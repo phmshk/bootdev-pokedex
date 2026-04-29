@@ -9,6 +9,31 @@ import (
 	"github.com/phmshk/bootdev-pokedex/internal/pokecache"
 )
 
+type PokemonData struct {
+	ID             int    `json:"id"`
+	Name           string `json:"name"`
+	BaseExperience int    `json:"base_experience"`
+	Height         int    `json:"height"`
+	IsDefault      bool   `json:"is_default"`
+	Order          int    `json:"order"`
+	Weight         int    `json:"weight"`
+	Stats          []struct {
+		BaseStat int `json:"base_stat"`
+		Effort   int `json:"effort"`
+		Stat     struct {
+			Name string `json:"name"`
+			URL  string `json:"url"`
+		} `json:"stat"`
+	} `json:"stats"`
+	Types []struct {
+		Slot int `json:"slot"`
+		Type struct {
+			Name string `json:"name"`
+			URL  string `json:"url"`
+		} `json:"type"`
+	} `json:"types"`
+}
+
 type LocationAreaDetails struct {
 	PokemonEncounters []struct {
 		Pokemon struct {
@@ -30,10 +55,11 @@ type PokeResponse struct {
 }
 
 type ConfigStruct struct {
-	Base     string
-	Next     string
-	Previous *string
-	Cache    *pokecache.Cache
+	Base          string
+	Next          string
+	Previous      *string
+	Cache         *pokecache.Cache
+	CaughtPokemon map[string]PokemonData
 }
 
 func printSeparatorMsg(msg string) {
@@ -53,6 +79,14 @@ func GetPokeData(url string, conf *ConfigStruct) ([]PokeLocation, error) {
 			return nil, err
 		}
 		defer res.Body.Close()
+
+		if res.StatusCode == http.StatusNotFound {
+			return nil, fmt.Errorf("locations not found")
+		}
+
+		if res.StatusCode > 299 {
+			return nil, fmt.Errorf("response failed with status code: %d", res.StatusCode)
+		}
 
 		data, err = io.ReadAll(res.Body)
 		if err != nil {
@@ -87,6 +121,14 @@ func GetLocationAreaDetails(url, locationName string, conf *ConfigStruct) (Locat
 		}
 		defer res.Body.Close()
 
+		if res.StatusCode == http.StatusNotFound {
+			return LocationAreaDetails{}, fmt.Errorf("location not found")
+		}
+
+		if res.StatusCode > 299 {
+			return LocationAreaDetails{}, fmt.Errorf("response failed with status code: %d", res.StatusCode)
+		}
+
 		data, err = io.ReadAll(res.Body)
 		if err != nil {
 			return LocationAreaDetails{}, err
@@ -102,7 +144,39 @@ func GetLocationAreaDetails(url, locationName string, conf *ConfigStruct) (Locat
 		return LocationAreaDetails{}, err
 	}
 
-	fmt.Println(areaData)
-
 	return areaData, nil
+}
+
+func GetPokemonData(pokemonName string, conf *ConfigStruct) (PokemonData, error) {
+	baseURL := "https://pokeapi.co/api/v2/pokemon/"
+	finalURL := baseURL + pokemonName
+
+	data, ok := conf.Cache.Get(finalURL)
+	if !ok {
+
+		res, err := http.Get(finalURL)
+		if err != nil {
+			return PokemonData{}, err
+		}
+		defer res.Body.Close()
+
+		if res.StatusCode == http.StatusNotFound {
+			return PokemonData{}, fmt.Errorf("pokemon not found")
+		}
+
+		if res.StatusCode > 299 {
+			return PokemonData{}, fmt.Errorf("response failed with status code: %d", res.StatusCode)
+		}
+
+		data, err = io.ReadAll(res.Body)
+		if err != nil {
+			return PokemonData{}, err
+		}
+	}
+	var pD PokemonData
+	if err := json.Unmarshal(data, &pD); err != nil {
+		return PokemonData{}, err
+	}
+
+	return pD, nil
 }
