@@ -11,6 +11,8 @@ import (
 	"github.com/phmshk/bootdev-pokedex/internal/pokecache"
 )
 
+// test commit to chech credentials
+
 func main() {
 	scanner := bufio.NewScanner(os.Stdin)
 
